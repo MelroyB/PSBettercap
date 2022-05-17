@@ -5,23 +5,24 @@ $objGPS
 $objAP = @()
 $global:objAPs = @()
  $objNodes = @()
- #$objNodes += New-Object PSObject -property @{
- #                                   ip="192.168.188.128"
- #                                   port="8081"
- #                                   protocol="http"
- #                                   channel="all"
- #                                   comment="comment node 1"
- #                               }
+$objNodes += New-Object PSObject -property @{
+                                   ip="192.168.188.128"
+                                   port="8081"
+                                   protocol="http"
+                                   channel="all"
+                                   comment="KaliVM"
+                                }
  $objNodes += new-object psobject -property @{
                                     ip="192.168.137.14"
                                     port="8081"
                                     protocol="http"
                                     channel="6"
-                                    comment="comment node 2"
+                                    comment="RPI via Hotspot"
                                 }
 
 
-function create-map{
+function create-map
+{
 #### Skip no location
 #### descriptions
 
@@ -65,7 +66,8 @@ $kml | Out-File -Force -Encoding ascii ("c:\temp\log-$((get-date).ToString("yyyy
 
 
 }
-function export-results{
+function export-results
+{
 #Convert to CSV
 $global:objAPs | Select-Object mac,hostname,vendor,channel,encryption,auth,clients,handshake,latitude,longitude,last_seen,detectedby | export-csv -Path C:\temp\log-$((get-date).ToString("yyyyMMdd-HHmmss")).csv
 ##
@@ -150,7 +152,7 @@ function Get-BettercapAPs {
                           
                           ### Check if AP is already in the table
                           if (($global:objAPs) -and ($global:objAPs.mac.Contains($ap.mac))){
-                            $UpdateAP=$global:objAPs | where {$_.mac -eq $ap.mac}
+                            $UpdateAP=$global:objAPs | Where-Object {$_.mac -eq $ap.mac}
                             $UpdateAP.last_seen=$ap.last_seen.Split("\.")[0]
                             $UpdateAP.handshake=$ap.handshake
                             $UpdateAP.detectedby=$objnode.ip + ':' +  $objnode.port
@@ -335,14 +337,14 @@ while ($continue) {
     if ($prompt -eq "start") {
         do {
         
-        clear
-        $global:objAPs | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,clients,detectedby
+        Clear-Host
+        #$global:objAPs | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,clients,detectedby
         Get-BettercapAPs
         Write-host "-----------------------"
         Write-host $global:objAPs.count "Accesspoints"
         Write-host $OBJgps.NumSatellites "GPS Sattelites"
         Write-host "press key to cancel"
-        sleep 5
+        Start-Sleep 5
         } until ([System.Console]::KeyAvailable) 
     
     }

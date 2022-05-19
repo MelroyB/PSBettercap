@@ -1,3 +1,5 @@
 
 .vscode/launch.json
 *.code-workspace
+nodes.xml
+session.xml

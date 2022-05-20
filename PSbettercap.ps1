@@ -1,4 +1,5 @@
 ﻿$Host.UI.RawUI.WindowTitle = "PSBettercap"
+clear
 # $DebugPreference = 'SilentlyContinue'
 $DebugPreference = 'Continue'
 $base=$(if ($psISE) {Split-Path -Path $psISE.CurrentFile.FullPath} else {$(if ($global:PSScriptRoot.Length -gt 0) {$global:PSScriptRoot} else {$global:pwd.Path})})
@@ -275,9 +276,9 @@ function add-node{
                                     port=Read-Host -Prompt 'REST API Port'
                                     protocol=Read-Host -Prompt 'HTTP or HTTPS'
                                     channel=Read-Host -Prompt 'Channels to scan or all'
-                                    comment=Read-Host -Prompt 'Comment'
-                                    online=$false
-                                    interface=$null
+                                    comment=""
+                                    online=""
+                                    interface=""
                                 }
     save-nodes
 
@@ -322,7 +323,7 @@ function choose-nodeinterface{
                     $uri = $global:objNodes[$SelectNode].protocol + '://' + $global:objNodes[$SelectNode].ip + ':' + $global:objNodes[$SelectNode].port + '/api/session'
 
                     $objApiResult = $null
-                    try {$objApiResult = Invoke-RestMethod -Uri $uri -TimeoutSec 5}catch{write-host offline}
+                    $objApiResult = Invoke-RestMethod -Uri $uri -TimeoutSec 5
                         
                          if ($objApiResult -eq $null){
                             

@@ -374,8 +374,12 @@ $global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Obje
     $uri = $global:objNodes.protocol[$selectnode] + '://' + $global:objNodes.ip[$selectnode] + ':' + $global:objNodes.port[$selectnode] + '/api/session'
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
-    Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel $($UpdateNode.channel)`"}"
 
+    if ($UpdateNode.channel -eq "all"){
+        Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel clear`"}"
+        } else {
+        Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel $($UpdateNode.channel)`"}"
+        }
 
 
    }
@@ -384,9 +388,16 @@ function Start-Nodes {
             $headers.Add("Content-Type", "application/json")
             foreach ($objNode in $global:objNodes){
                 $uri = $objnode.protocol + '://' + $objNode.ip + ':' + $objNode.port + '/api/session'  
+                      
+               if ($objNode.channel -eq "all"){
+                try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel clear`"}"}catch{}
+                } else {
+                try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel $($objNode.channel)`"}" -TimeoutSec 5}catch{}
+                }             
                 
-                try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.interface $($updatenode.interface)`"}" -TimeoutSec 5}catch{}
+                try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.interface $($objNode.interface)`"}" -TimeoutSec 5}catch{}
                 try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon on`"}" -TimeoutSec 5}catch{}
+          
                 }
             }
 function Stop-Nodes {

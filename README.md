@@ -1,3 +1,3 @@
 ## Main Features
 
-* Control bettercap nodes through REST API 
+* Control [Bettercap](https://github.com/bettercap/bettercap) nodes through REST API 

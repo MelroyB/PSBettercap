@@ -14,3 +14,6 @@
 
 ## Commands
 ### nodes show
+![nodes show](https://github.com/MelroyB/PSBettercap/blob/96d9e39228554c90158088367418f05b75ce054c/screenshots/nodes_show.png)
+![nodes add]https://github.com/MelroyB/PSBettercap/blob/96d9e39228554c90158088367418f05b75ce054c/screenshots/nodes_add.png
+![nodes del]https://github.com/MelroyB/PSBettercap/blob/96d9e39228554c90158088367418f05b75ce054c/screenshots/nodes_int.png

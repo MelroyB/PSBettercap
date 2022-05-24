@@ -14,7 +14,7 @@
 
 ## Commands
 ### nodes show
-![nodes show]https://github.com/MelroyB/PSBettercap/raw/main/screenshots/nodes_show.png)
+![nodes show](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/nodes_show.png)
 ### nodes add
 ![nodes add](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/nodes_add.png)
 ### nodes del

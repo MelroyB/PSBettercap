@@ -6,6 +6,7 @@ $base=$(if ($psISE) {Split-Path -Path $psISE.CurrentFile.FullPath} else {$(if ($
 
 $Sessionfile = $base + "\session.xml"
 $nodefile = $base + "\nodes.xml"
+$csvfile = $base + "\log-$((get-date).ToString("yyyyMMdd-HHmmss")).csv"
 
 $global:events=@()
 $global:events += new-object psobject -property @{
@@ -62,7 +63,7 @@ $kml | Out-File -Force -Encoding ascii ("c:\temp\log-$((get-date).ToString("yyyy
 }
 function export-results{
 #Convert to CSV
-$global:objAPs | Select-Object mac,hostname,vendor,channel,encryption,auth,clients,handshake,latitude,longitude,last_seen,detectedby | export-csv -Path C:\temp\log-$((get-date).ToString("yyyyMMdd-HHmmss")).csv
+$global:objAPs | Select-Object mac,hostname,vendor,channel,encryption,auth,clients,handshake,latitude,longitude,last_seen,detectedby | export-csv -Path $csvfile
 ##
 }
 function Write-HostCenter {
@@ -204,16 +205,18 @@ $Handshakes = $WifiAps | Where-Object -FilterScript {$_.handshake -EQ 'True'}
 
 }
 function Show-Help { 
-       Write-host "nodes show = show bettercap nodes"
-       Write-host "nodes add = add bettercap nodes"
-       Write-host "nodes int = Config bettercap node interface"
+       Write-host "nodes show    = show bettercap nodes"
+       Write-host "nodes add     = add bettercap nodes"
+       Write-host "nodes int     = Config bettercap node interface"
        Write-host "nodes channel = Config bettercap node channel"
-       Write-host "nodes del = del bettercap nodes"
-       Write-host "nodes start = start all bettercap nodes"
-       Write-host "nodes stop = stop all bettercap nodes"
-       Write-host "show = show networks"
-       Write-host "help = help"
-       Write-host "q = quit"
+       Write-host "nodes ttl     = Config bettercap node ttl"
+       Write-host "nodes del     = del bettercap nodes"
+       Write-host "nodes start   = start all bettercap nodes"
+       Write-host "nodes stop    = stop all bettercap nodes"
+       Write-host "show          = show networks"
+       Write-host "start         = start session with the nodes"
+       Write-host "help          = help"
+       Write-host "exit          = quit"
     }
 function command-nodes { 
     param ($a)
@@ -226,6 +229,7 @@ function command-nodes {
        if ($a -like "nodes del") {remove-node}
        if ($a -like "nodes int") {choose-nodeinterface}
        if ($a -like "nodes channel") {set-nodechannels}
+       if ($a -like "nodes ttl") {set-nodettl}
        if ($a -like "nodes start") {Start-Nodes}
        if ($a -like "nodes stop") {Stop-Nodes}
     }
@@ -258,7 +262,7 @@ function Out-Debug{
 function load-session {
     if (Test-Path -Path $Sessionfile) {
        write-host "Previous session found and imported" -ForegroundColor Green
-       $global:objAPs = import-clixml $Sessionfile
+       $global:objAPs = @(import-clixml $Sessionfile)
     
      } else {
         write-host "No previous session found" -ForegroundColor Green
@@ -271,14 +275,26 @@ $global:objAPs | export-clixml $Sessionfile -Force
 
 function add-node{
     show-nodes
+
+    $addNodeIP      = Read-Host -Prompt 'Hostname/IP'
+    $addNodePort    = if(($result = Read-Host "REST API Port [8081]") -eq ''){"8081"}else{$result}
+    $addNodeProt    = if(($result = Read-Host "HTTP or HTTPS [http]") -eq ''){"http"}else{$result}
+    $addNodeChan    = if(($result = Read-Host "Channels to scan [all]") -eq ''){"all"}else{$result}
+    $addNodeComment = Read-Host -Prompt 'Comment'
+    $addNodeAPttl   = if(($result = Read-Host "AP TTL [300]") -eq ''){"300"}else{$result}
+    $addNodeSTAttl  = if(($result = Read-Host "STA.TTL [300]") -eq ''){"300"}else{$result}
+
+
     $global:objNodes += new-object psobject -property @{
-                                    ip=Read-Host -Prompt 'Hostname/IP'
-                                    port=Read-Host -Prompt 'REST API Port'
-                                    protocol=Read-Host -Prompt 'HTTP or HTTPS'
-                                    channel=Read-Host -Prompt 'Channels to scan or all'
-                                    comment=""
-                                    online=""
-                                    interface=""
+                                    "ip"       = $addNodeIP
+                                    "port"     = $addNodePort
+                                    "protocol" = $addNodeProt
+                                    "channel"  = $addNodeChan
+                                    "comment"  = $addNodeComment
+                                    "online"   = ""
+                                    "interface"= ""
+                                    "ap.ttl"   = $addNodeAPttl
+                                    "sta.ttl"  = $addNodeSTAttl
                                 }
     save-nodes
 
@@ -287,7 +303,8 @@ function load-nodes {
         ### load node file
         if (Test-Path -Path $nodefile) {
            write-host "Previous nodes found and imported" -ForegroundColor Green
-           $global:objNodes = import-clixml $nodefile
+            
+           $global:objNodes = @(import-clixml $nodefile)
     
          } else {
             write-host "No previous nodes found" -ForegroundColor Green
@@ -309,7 +326,7 @@ $count = 0
     save-nodes
 }
 function show-nodes{
-($global:objNodes | format-table online,ip,port,interface,channel,comment| Format-Table  | Out-String).Trim()
+($global:objNodes | format-table online,ip,port,interface,channel,comment,"ap.ttl","sta.ttl"| Format-Table  | Out-String).Trim()
 }
 function choose-nodeinterface{
 
@@ -352,6 +369,9 @@ function choose-nodeinterface{
                                 }
 
                              }
+
+                    save-nodes
+
  
                    }
 function set-nodechannels{
@@ -366,13 +386,13 @@ $global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Obje
     $SelectNode = Read-Host -Prompt 'ID to change channel'
 
     $UpdateNode= $global:objNodes | where ({$_.port -eq $global:objNodes[$SelectNode].port -and $_.ip -eq $global:objNodes[$SelectNode].ip})
-    $UpdateNode.channel = Read-Host -Prompt 'Comma seperated channels or all'
+    $UpdateNode.channel =if(($result = Read-Host "Channels to scan [all]") -eq ''){"all"}else{$result}
+
     save-nodes
 
     ## send new config to node
 
-
-    $uri = $global:objNodes.protocol[$selectnode] + '://' + $global:objNodes.ip[$selectnode] + ':' + $global:objNodes.port[$selectnode] + '/api/session'
+    $uri = $global:objNodes[$selectnode].protocol + '://' + $global:objNodes[$selectnode].ip + ':' + $global:objNodes[$selectnode].port + '/api/session'
     $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
     $headers.Add("Content-Type", "application/json")
 
@@ -381,6 +401,35 @@ $global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Obje
         } else {
         Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel $($UpdateNode.channel)`"}"
         }
+
+
+   }
+function set-nodettl{
+
+
+$SelectNode = $null
+$count = 0
+$global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Object {
+    $_ |  Select-Object @{Name = 'ID'; Expression = {$count}}, *
+    $count++} | Format-Table -AutoSize
+
+    $SelectNode = Read-Host -Prompt 'ID to change TTL'
+        $UpdateNode= $global:objNodes | where ({$_.port -eq $global:objNodes[$SelectNode].port -and $_.ip -eq $global:objNodes[$SelectNode].ip})
+    
+    $updateNode.'ap.ttl'  = if(($result = Read-Host "AP TTL [300]") -eq ''){"300"}else{$result}
+    $updateNode.'sta.ttl' = if(($result = Read-Host "STA.TTL [300]") -eq ''){"300"}else{$result}
+
+    save-nodes
+
+    ## send new config to node
+
+    $uri = $global:objNodes[$selectnode].protocol + '://' + $global:objNodes[$selectnode].ip + ':' + $global:objNodes[$selectnode].port + '/api/session'
+    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+    $headers.Add("Content-Type", "application/json")
+
+        Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.ap.ttl $($updateNode.'ap.ttl')`"}"
+        Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.sta.ttl $($updateNode.'sta.ttl')`"}"
+     
 
 
    }
@@ -427,7 +476,7 @@ function show-events{
 }
 Function GetKeyPress([string]$regexPattern='[ynq]', [string]$message=$null, [int]$timeOutSeconds=0){
     $key = $null
-    $Host.UI.RawUI.FlushInputBuffer() 
+    # $Host.UI.RawUI.FlushInputBuffer()   # Werkt niet met linux 
 
     if (![string]::IsNullOrEmpty($message))
     {Write-Host -NoNewLine $message}
@@ -458,17 +507,16 @@ load-nodes
 $continue = $true
 while ($continue) {
     $prompt = Read-Host -Prompt '>'
-    if ($prompt -eq "q") {$continue = $false}
+    if ($prompt -eq "exit") {$continue = $false}
     if ($prompt -eq "show") {Show-BettercapAPs}
     if ($prompt -like "nodes*") {command-nodes $prompt}
     if ($prompt -eq "help") {show-help}
 
     if ($prompt -eq "start") {
-        
         $continue2 = $true
         while ($continue2) {
         Get-BettercapAPs
-        Clear-Host
+        #Clear-Host
         Write-HostCenter "######## Last 20 APS ########"
         ($global:objAPs |Sort-Object -Property last_seen |select -last 20 | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,clients,detectedby,latitude,longitude| Format-Table  | Out-String).Trim()
         Write-HostCenter "########### Nodes ###########"
@@ -478,10 +526,12 @@ while ($continue) {
         Write-HostCenter "#############################"
         Write-host $global:objAPs.count "Accesspoints / " -NoNewline
         Write-host $OBJgps.NumSatellites "GPS Sattelites"
-        Write-host "press q to stop scanning " -NoNewline
-        $key = GetKeyPress '[ynq]' "([y]/n/q)?" 2
+        Write-host "press q to return to prompt " -NoNewline
+        $key = GetKeyPress '[q]' "(q)?" 2
                     if ($key -eq "q"){$continue2 = $false}
         }  
+    
+    
     }
 } 
 
@@ -496,6 +546,5 @@ save-nodes
 
 # TODO
 # curl -X POST -F "email=SOME_VALID_EMAIL" -F "file=@/path/to/handshake.pcap" https://api.onlinehashcrack.com
-# set wifi.ap.ttl 30
-# set wifi.sta.ttl 30
+
 

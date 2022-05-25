@@ -1,5 +1,5 @@
 ﻿$Host.UI.RawUI.WindowTitle = "PSBettercap"
-clear
+Clear-Host
 
 # $DebugPreference = 'SilentlyContinue'
 $DebugPreference = 'Continue'
@@ -19,7 +19,7 @@ $global:events += new-object psobject -property @{
 
 $objAP = @()
 
-function create-map{
+function new-map{
 #### Skip no location
 #### descriptions
 
@@ -83,17 +83,29 @@ function Get-GPS {
                 #clear-variable all
                 }
         }  
-function Get-BettercapAPs {   
+function Get-BettercapAPs {  
+        ### Loop trough nodes        
         foreach ($objNode in $global:objNodes){
-        ### Loop through nodes
                 $objApiResult = $null
-                $uri = $objnode.protocol + '://' + $objNode.ip + ':' + $objNode.port + '/api/session'
-                try {$objApiResult = Invoke-RestMethod -Uri $uri -TimeoutSec 5}catch{}
-                $uri = $objnode.protocol + '://' + $objNode.ip + ':' + $objNode.port + '/api/events'
-                try {$objApiEventsResult = Invoke-RestMethod -Uri $uri -TimeoutSec 5}catch{}
-                try {Invoke-RestMethod -Method Delete -Uri $uri -TimeoutSec 5}catch{}
 
-                if ($objApiResult -eq $null){
+                if ($objnode.credentials -ne ""){
+                        $Headers = @{
+                        "Authorization" = "Basic $($objnode.credentials)"
+                        "Content-Type"  = "application/json"}
+                }else{
+                        $Headers = @{
+                        "Content-Type"  = "application/json"}
+                }
+
+
+
+                $uri = $objnode.protocol + '://' + $objNode.ip + ':' + $objNode.port + '/api/session'
+                try {$objApiResult = Invoke-RestMethod -Uri $uri -Method 'GET' -Headers $headers -TimeoutSec 5}catch{}
+                $uri = $objnode.protocol + '://' + $objNode.ip + ':' + $objNode.port + '/api/events'
+                try {$objApiEventsResult = Invoke-RestMethod -Uri $uri -Method 'GET' -Headers $headers -TimeoutSec 5}catch{}
+                try {Invoke-RestMethod -Uri $uri -Method 'DELETE' -Headers $headers -TimeoutSec 5}catch{}
+
+                if ($null -eq $objApiResult){
                     $UpdateNode=$global:objNodes | Where-Object {$_.ip -eq $objNode.ip}
                     $updatenode.online = $false
 
@@ -195,7 +207,7 @@ function Get-BettercapAPs {
    
                         if ($objevent.tag -eq "wifi.client.handshake"){
         
-                                if (($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty pmkid) -ne $null){
+                                if ($null -ne ($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty pmkid)){
                                     $objPMKID = ($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty pmkid)
                                     $objPMKIDStation = ($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty station)
                                     $objPMKIDAP = ($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty ap)
@@ -231,19 +243,7 @@ function Show-BettercapAPs {
         $global:objAPs | Format-table -Property first_seen,last_seen,mac,hostname,vendor,channel,encryption,cipher,auth,handshake,clients,detectedby
         Write-host "total Aps:" $global:objAPs.count
     }
-function Show-handshakes{
 
-### TODO
-
-$Handshakes = $WifiAps | Where-Object -FilterScript {$_.handshake -EQ 'True'}
-    foreach ($handshake in $Handshakes){
-
-        $uri = 'http://' + $nodeip + ':' + $ApiPort + '/api/session/wifi/' + $handshake.mac
-        $temp = Invoke-RestMethod -Uri $uri -TimeoutSec 5
-
-        }
-
-}
 function Show-Help { 
        Write-host "nodes show    = show bettercap nodes"
        Write-host "nodes add     = add bettercap nodes"
@@ -267,7 +267,7 @@ function command-nodes {
              }
        if ($a -like "nodes add") {add-node}
        if ($a -like "nodes del") {remove-node}
-       if ($a -like "nodes int") {choose-nodeinterface}
+       if ($a -like "nodes int") {set-nodeinterface}
        if ($a -like "nodes channel") {set-nodechannels}
        if ($a -like "nodes ttl") {set-nodettl}
        if ($a -like "nodes start") {Start-Nodes}
@@ -330,7 +330,7 @@ Write-Host "                                       ``▀▀▀▀▀▀▀▀▀
 Write-Host
 Write-Host
 Write-Host "   https://github.com/MelroyB/PSBettercap"}
-function load-session {
+function open-session {
     if (Test-Path -Path $Sessionfile) {
        write-host "Previous session found and imported - $Sessionfile" -ForegroundColor Green
        $global:objAPs = @(import-clixml $Sessionfile)
@@ -347,30 +347,39 @@ $global:objAPs | export-clixml $Sessionfile -Force
 function add-node{
     show-nodes
 
-    $addNodeIP      = Read-Host -Prompt 'Hostname/IP'
-    $addNodePort    = if(($result = Read-Host "REST API Port [8081]") -eq ''){"8081"}else{$result}
-    $addNodeProt    = if(($result = Read-Host "HTTP or HTTPS [http]") -eq ''){"http"}else{$result}
-    $addNodeChan    = if(($result = Read-Host "Channels to scan [all]") -eq ''){"all"}else{$result}
-    $addNodeComment = Read-Host -Prompt 'Comment'
-    $addNodeAPttl   = if(($result = Read-Host "AP TTL [300]") -eq ''){"300"}else{$result}
-    $addNodeSTAttl  = if(($result = Read-Host "STA.TTL [300]") -eq ''){"300"}else{$result}
+    $addNodeIP       = Read-Host -Prompt 'Hostname/IP'
+    $addNodePort     = if(($result = Read-Host "REST API Port [8081]") -eq ''){"8081"}else{$result}
+    $addNodeProt     = if(($result = Read-Host "HTTP or HTTPS [http]") -eq ''){"http"}else{$result}
+    $addNodeUsername = Read-Host -prompt "Username"
+    if ($addNodeUsername -eq "")
+     {$addNodePassword = ""
+     $addNodeEncodedCreds=""}
+     else
+     {$addNodePassword = Read-Host -prompt "Password"
+      $addNodeEncodedCreds = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("$($addNodeUsername):$($addNodePassword)"))
+     }
+    $addNodeChan     = if(($result = Read-Host "Channels to scan [all]") -eq ''){"all"}else{$result}
+    $addNodeComment  = Read-Host -Prompt 'Comment'
+    $addNodeAPttl    = if(($result = Read-Host "AP TTL [300]") -eq ''){"300"}else{$result}
+    $addNodeSTAttl   = if(($result = Read-Host "STA.TTL [300]") -eq ''){"300"}else{$result}
 
 
     $global:objNodes += new-object psobject -property @{
-                                    "ip"       = $addNodeIP
-                                    "port"     = $addNodePort
-                                    "protocol" = $addNodeProt
-                                    "channel"  = $addNodeChan
-                                    "comment"  = $addNodeComment
-                                    "online"   = ""
-                                    "interface"= ""
-                                    "ap.ttl"   = $addNodeAPttl
-                                    "sta.ttl"  = $addNodeSTAttl
+                                    "ip"         = $addNodeIP
+                                    "port"       = $addNodePort
+                                    "protocol"   = $addNodeProt
+                                    "channel"    = $addNodeChan
+                                    "comment"    = $addNodeComment
+                                    "online"     = ""
+                                    "interface"  = ""
+                                    "ap.ttl"     = $addNodeAPttl
+                                    "sta.ttl"    = $addNodeSTAttl
+                                    "credentials" = $addNodeEncodedCreds
                                 }
     save-nodes
 
 }
-function load-nodes {
+function open-nodes {
         ### load node file
         if (Test-Path -Path $nodefile) {
            write-host "Previous nodes found and imported - $nodefile" -ForegroundColor Green
@@ -393,14 +402,14 @@ $count = 0
     $count++} | Format-Table -AutoSize
     $SelectNode = Read-Host -Prompt 'ID to remove'
 
-    $global:objNodes= @($global:objNodes | where ({$_.port -ne $global:objNodes[$SelectNode].port -or $_.ip -ne $global:objNodes[$SelectNode].ip}))
+    $global:objNodes= @($global:objNodes | Where-Object ({$_.port -ne $global:objNodes[$SelectNode].port -or $_.ip -ne $global:objNodes[$SelectNode].ip}))
     save-nodes
     load-nodes
 }
 function show-nodes{
-($global:objNodes | format-table online,ip,port,interface,channel,comment,"ap.ttl","sta.ttl"| Format-Table  | Out-String).Trim()
+($global:objNodes | format-table online,ip,port,credentials,interface,channel,comment,"ap.ttl","sta.ttl"| Format-Table  | Out-String).Trim()
 }
-function choose-nodeinterface{
+function set-nodeinterface{
 
                 $SelectNode = $null
                 $count = 0
@@ -411,10 +420,26 @@ function choose-nodeinterface{
                     $SelectNode = Read-Host -Prompt 'ID to change interface'
                     $uri = $global:objNodes[$SelectNode].protocol + '://' + $global:objNodes[$SelectNode].ip + ':' + $global:objNodes[$SelectNode].port + '/api/session'
 
+
+                    
+
+                                    if ($global:objNodes[$SelectNode].credentials -ne ""){
+                                        $Headers = @{
+                                        "Authorization" = "Basic $($global:objNodes[$SelectNode].credentials)"
+                                        "Content-Type"  = "application/json"}
+                                          }else{
+                                        $Headers = @{
+                                        "Content-Type"  = "application/json"}
+                                        }
+
+
+                                       
+
+
                     $objApiResult = $null
-                    $objApiResult = Invoke-RestMethod -Uri $uri -TimeoutSec 5
+                    $objApiResult = Invoke-RestMethod -Uri $uri -Method 'GET' -Headers $headers -TimeoutSec 5
                         
-                         if ($objApiResult -eq $null){
+                         if ($null -eq $objApiResult){
                             
                             } else {
                             
@@ -435,8 +460,7 @@ function choose-nodeinterface{
                                     $UpdateNode=$global:objNodes | Where-Object {$_.ip -eq $global:objNodes[$SelectNode].ip} | Where-Object {$_.port -eq $global:objNodes[$SelectNode].port}
                                     $UpdateNode.interface = $selection[$result].name
 
-                                    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-                                    $headers.Add("Content-Type", "application/json")
+                               
                                     try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.interface $($updatenode.interface)`"}" -TimeoutSec 5}catch{write-host offline}
                                 }
 
@@ -457,7 +481,7 @@ $global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Obje
 
     $SelectNode = Read-Host -Prompt 'ID to change channel'
 
-    $UpdateNode= $global:objNodes | where ({$_.port -eq $global:objNodes[$SelectNode].port -and $_.ip -eq $global:objNodes[$SelectNode].ip})
+    $UpdateNode= $global:objNodes | Where-Object ({$_.port -eq $global:objNodes[$SelectNode].port -and $_.ip -eq $global:objNodes[$SelectNode].ip})
     $UpdateNode.channel =if(($result = Read-Host "Channels to scan [all]") -eq ''){"all"}else{$result}
 
     save-nodes
@@ -465,8 +489,20 @@ $global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Obje
     ## send new config to node
 
     $uri = $global:objNodes[$selectnode].protocol + '://' + $global:objNodes[$selectnode].ip + ':' + $global:objNodes[$selectnode].port + '/api/session'
-    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-    $headers.Add("Content-Type", "application/json")
+
+
+                                    if ($global:objNodes[$SelectNode].credentials -ne ""){
+                                        $Headers = @{
+                                        "Authorization" = "Basic $($global:objNodes[$SelectNode].credentials)"
+                                        "Content-Type"  = "application/json"}
+                                          }else{
+                                        $Headers = @{
+                                        "Content-Type"  = "application/json"}
+                                        }
+
+
+
+
 
     if ($UpdateNode.channel -eq "all"){
         Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel clear`"}"
@@ -486,7 +522,7 @@ $global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Obje
     $count++} | Format-Table -AutoSize
 
     $SelectNode = Read-Host -Prompt 'ID to change TTL'
-        $UpdateNode= $global:objNodes | where ({$_.port -eq $global:objNodes[$SelectNode].port -and $_.ip -eq $global:objNodes[$SelectNode].ip})
+        $UpdateNode= $global:objNodes | Where-Object ({$_.port -eq $global:objNodes[$SelectNode].port -and $_.ip -eq $global:objNodes[$SelectNode].ip})
     
     $updateNode.'ap.ttl'  = if(($result = Read-Host "AP TTL [300]") -eq ''){"300"}else{$result}
     $updateNode.'sta.ttl' = if(($result = Read-Host "STA.TTL [300]") -eq ''){"300"}else{$result}
@@ -496,8 +532,19 @@ $global:objNodes | select-object ip,port,channel,interface,comment| ForEach-Obje
     ## send new config to node
 
     $uri = $global:objNodes[$selectnode].protocol + '://' + $global:objNodes[$selectnode].ip + ':' + $global:objNodes[$selectnode].port + '/api/session'
-    $headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
-    $headers.Add("Content-Type", "application/json")
+
+
+
+                                    if ($global:objNodes[$SelectNode].credentials -ne ""){
+                                        $Headers = @{
+                                        "Authorization" = "Basic $($global:objNodes[$SelectNode].credentials)"
+                                        "Content-Type"  = "application/json"}
+                                          }else{
+                                        $Headers = @{
+                                        "Content-Type"  = "application/json"}
+                                        }
+
+
 
         Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.ap.ttl $($updateNode.'ap.ttl')`"}"
         Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.sta.ttl $($updateNode.'sta.ttl')`"}"
@@ -557,7 +604,7 @@ Function GetKeyPress([string]$regexPattern='[ynq]', [string]$message=$null, [int
     {Write-Host -NoNewLine $message}
 
     $counter = $timeOutSeconds * 1000 / 250
-    while($key -eq $null -and ($timeOutSeconds -eq 0 -or $counter-- -gt 0)){
+    while($null -eq $key -and ($timeOutSeconds -eq 0 -or $counter-- -gt 0)){
         if (($timeOutSeconds -eq 0) -or $Host.UI.RawUI.KeyAvailable)
         {                       
             $key_ = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown,IncludeKeyUp")
@@ -568,16 +615,16 @@ Function GetKeyPress([string]$regexPattern='[ynq]', [string]$message=$null, [int
         {Start-Sleep -m 250  # Milliseconds }
     } }                      
 
-    if (-not ($key -eq $null)) {Write-Host -NoNewLine "$($key.Character)"}
+    if (-not ($null -eq $key)) {Write-Host -NoNewLine "$($key.Character)"}
     if (![string]::IsNullOrEmpty($message)) {Write-Host "" # newline}       
 
-    return $(if ($key -eq $null) {$null} else {$key.Character})
+    return $(if ($null -eq $key) {$null} else {$key.Character})
 }}
 
 
 show-banner
-load-session
-load-nodes
+open-session
+open-nodes
 
 
 $continue = $true
@@ -594,9 +641,9 @@ while ($continue) {
         while ($continue2) {
         Get-BettercapAPs
         #Clear-Host
-        clear
+        Clear-Host
         write-HostCenter "######## Last 20 APS ########"
-        ($global:objAPs |Sort-Object -Property last_seen |select -last 20 | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,pmkid,clients,latitude,longitude,detectedby| Format-Table)
+        ($global:objAPs |Sort-Object -Property last_seen |Select-Object -last 20 | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,pmkid,clients,latitude,longitude,detectedby| Format-Table)
         Write-HostCenter "########### Nodes ###########"
         show-nodes
         Write-HostCenter "########### Events ##########"
@@ -616,7 +663,7 @@ while ($continue) {
 
 
 # Exit
-create-map
+new-map
 export-results
 save-session
 save-nodes

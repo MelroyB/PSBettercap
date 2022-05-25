@@ -1,5 +1,6 @@
 ﻿$Host.UI.RawUI.WindowTitle = "PSBettercap"
 clear
+
 # $DebugPreference = 'SilentlyContinue'
 $DebugPreference = 'Continue'
 $base=$(if ($psISE) {Split-Path -Path $psISE.CurrentFile.FullPath} else {$(if ($global:PSScriptRoot.Length -gt 0) {$global:PSScriptRoot} else {$global:pwd.Path})})
@@ -8,7 +9,7 @@ $Sessionfile = $base + "\session.xml"
 $nodefile = $base + "\nodes.xml"
 $csvfile = $base + "\log-$((get-date).ToString("yyyyMMdd-HHmmss")).csv"
 
-$global:events=@()
+$global:events  =@()
 $global:events += new-object psobject -property @{
                                     message="Starting PSBettercap"
                                     color="green"
@@ -87,6 +88,9 @@ function Get-BettercapAPs {
                 $objApiResult = $null
                 $uri = $objnode.protocol + '://' + $objNode.ip + ':' + $objNode.port + '/api/session'
                 try {$objApiResult = Invoke-RestMethod -Uri $uri -TimeoutSec 5}catch{}
+                $uri = $objnode.protocol + '://' + $objNode.ip + ':' + $objNode.port + '/api/events'
+                try {$objApiEventsResult = Invoke-RestMethod -Uri $uri -TimeoutSec 5}catch{}
+                try {Invoke-RestMethod -Method Delete -Uri $uri -TimeoutSec 5}catch{}
 
                 if ($objApiResult -eq $null){
                     $UpdateNode=$global:objNodes | Where-Object {$_.ip -eq $objNode.ip}
@@ -153,35 +157,70 @@ function Get-BettercapAPs {
                                   }else {
                                     new-event "$((get-date).ToString("HH:mm:ss"))|$($ap.mac)|$($ap.hostname) Found new AP" "green" "black"              
                                     $global:objAPs += New-Object PSObject -property @{
-                                    mac=$ap.mac
-                                    alias= $ap.alias
-                                    auth = $ap.authentication
-                                    channel = $ap.channel
-                                    cipher = $ap.cipher
-                                    clients = $ap.clients.count
+                                    mac            = $ap.mac
+                                    alias          = $ap.alias
+                                    auth           = $ap.authentication
+                                    channel        = $ap.channel
+                                    cipher         = $ap.cipher
+                                    clients        = $ap.clients.count
                                     clientsdetails = $ap.clients
-                                    encryption = $ap.encryption
-                                    first_seen = $ap.first_seen.Split("\.")[0]
-                                    frequency = $ap.frequency
-                                    handshake = $ap.handshake
-                                    hostname = $ap.hostname
-                                    ipv4 = $ap.ipv4
-                                    ipv6 = $ap.ipv6
-                                    last_seen = $ap.last_seen.Split("\.")[0]
-                                    meta = $ap.meta
-                                    received = $ap.received
-                                    rssi = $ap.rssi
-                                    sent = $ap.sent
-                                    vendor = $ap.vendor
-                                    wps = $ap.wps
-                                    detectedby = $objnode.ip + ':'+ $objnode.port 
-                                    latitude = $objGPS.latitude
-                                    longitude = $objGPS.Longitude
-                                    rssigpsupdate= $ap.rssi
+                                    encryption     = $ap.encryption
+                                    first_seen     = $ap.first_seen.Split("\.")[0]
+                                    frequency      = $ap.frequency
+                                    handshake      = $ap.handshake
+                                    pmkid          = ""
+                                    hostname       = $ap.hostname
+                                    ipv4           = $ap.ipv4
+                                    ipv6           = $ap.ipv6
+                                    last_seen      = $ap.last_seen.Split("\.")[0]
+                                    meta           = $ap.meta
+                                    received       = $ap.received
+                                    rssi           = $ap.rssi
+                                    sent           = $ap.sent
+                                    vendor         = $ap.vendor
+                                    wps            = $ap.wps
+                                    detectedby     = $objnode.ip + ':'+ $objnode.port 
+                                    latitude       = $objGPS.latitude
+                                    longitude      = $objGPS.Longitude
+                                    rssigpsupdate  = $ap.rssi
                                 }
                             #Clear-Variable objApiResult
                         #$global:objAPs += $objAP
                         }}
+
+
+                ### Loop Trough all events
+                foreach ($objEvent in $objApiEventsResult){
+   
+                        if ($objevent.tag -eq "wifi.client.handshake"){
+        
+                                if (($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty pmkid) -ne $null){
+                                    $objPMKID = ($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty pmkid)
+                                    $objPMKIDStation = ($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty station)
+                                    $objPMKIDAP = ($objevent | Select-Object -ExpandProperty data |select-object -ExpandProperty ap)
+                                    
+
+                                        if (($global:objAPs) -and ($global:objAPs.mac.Contains($objPMKIDAP))){
+                                        new-event "$((get-date).ToString("HH:mm:ss"))|$($objPMKIDAP)| PMKID captured" "black" "green"
+
+
+                                        $UpdateAP=$global:objAPs | Where-Object {$_.mac -eq $objPMKIDAP}
+                                        $UpdateAP.pmkid=$objPMKID
+
+
+
+
+                                        }
+                                }
+                        }
+
+                    #$objStation = $null
+                    #$objPMKID = $null
+    
+                    }
+
+
+
                 }
                 ###$global:objAPs | Format-table -Property mac,hostname,channel,detectedby,latitude,longitude,rssi,rssigpsupdate
        
@@ -259,9 +298,40 @@ function Out-Debug{
         }
     }
 }
+function show-banner {
+Write-Host "                                                                                   "
+Write-Host "            ............................                                           "
+Write-Host "          ╔▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                            "
+Write-Host "          ▓▓▓▓▓▓▌   ▀▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                            "
+Write-Host "         ▐▓▓▓▓▓▓▓▄    ▀▓▓▓▓╢███▓╢▓▓▓▓▓C                              ,,▄,          "
+Write-Host "         ▓▓▓▓▓▓▓▓▓▓▄    ▓███▀▀▀████╢▓▓                            ▄███▀▀███▄       "
+Write-Host "        ▐▓▓▓▓▓▓▓▓▓▓▓▓▄ ╒██▀░░▄▄▄░▀███        ,▄▄▄▄▄▄▄▄▄▄,       ▄██▀░▄▄▄▄░▀██      "
+Write-Host "        ▓▓▓▓▓▓▓▓▓▓▓▓▓▓╜██░░░░░▀▀██░▀██  ▄▄█████▓▓▓▓▓▓▓██████▄, ██▀░▄██▀░░░░░██     "
+Write-Host "       ▐▓▓▓▓▓▓▓▓▓▓▓▀   ██░░░░░░░▐███████▓▓████████ ▓▀▀█████▓▓█████▄█▌░░░░░░░██     "
+Write-Host "       ▓▓▓▓▓▓▓▓▓▀   ,▄▓██░░░░░░▄███████████████▌▓∞²█╜▀██████████▓████▄░░░░░░██     "
+Write-Host "      ▓▓▓▓▓▓▓▀   ,▄▓   ▐██░░░▄████████████████▓▓█▄▄▄▄██████████████████▄░░░██▀     "
+Write-Host "      ▓▓▓▓▓▓▓,,▄▓▓▓▓▄▄╦▄▓██▄███▀▀███████████████████▓▓█████████▓████▀▀███╓██▀      "
+Write-Host "     ▐▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓╢████-     ▀▀▀▀██████████████████████▀▀▀'    `███▀        "
+Write-Host "                            █▌  ████▄         ▐█░░░░░█▌         ▄███▄  ▐█          "
+Write-Host "                           ▐█  ▐█████         ▐█░░░░░█⌐         █████   █▌         "
+Write-Host "                           ██▌   ▀▀`          ▐█░░░░░█▌          ▀▀▀   ▐██         " 
+Write-Host "                          ██▀█               ╓█░░░░░░╙█▄              ,█▌█▌        "
+Write-Host "                          ██░▀█▄            ▄█⌡▄▄███▄▄░█▄            ▄█▀░▐█        "
+Write-Host "                         ▐██░░░▀██▄,    ,▄██▀░██▓▓█▓██▌░▀██▄,    ,▄██▀░░░░█▌       "
+Write-Host "                         ████▄░░░░▀▀▀▀▀▀▀▀⌠▄█████████████▄▌▀▀▀▀▀▀▀▀░░░░░▄██▌       "
+Write-Host "                         ██▓█████▄▄▄▄▄▄██████▓████████▓▓██████▄▄▄▄▄▄▄████▓██       "
+Write-Host "                         ██▓██▓▓▓█████▓▓▓███████████████████▓▓▓▓▓▓▓▓████████       "
+Write-Host "                         █████████████▓▓▓████████████████████████████████▓██       "
+Write-Host "                         █████████▓▓▓███████████████████████████████████████       "
+Write-Host "                         ▀██████████████████████████████████████████████▓█▀        "
+Write-Host "                           '▀████████████████▓▓▓▓▓▓██████████████▓▓██▀▀▀           "
+Write-Host "                                       ``▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀"
+Write-Host
+Write-Host
+Write-Host "   https://github.com/MelroyB/PSBettercap"}
 function load-session {
     if (Test-Path -Path $Sessionfile) {
-       write-host "Previous session found and imported" -ForegroundColor Green
+       write-host "Previous session found and imported - $Sessionfile" -ForegroundColor Green
        $global:objAPs = @(import-clixml $Sessionfile)
     
      } else {
@@ -302,7 +372,7 @@ function add-node{
 function load-nodes {
         ### load node file
         if (Test-Path -Path $nodefile) {
-           write-host "Previous nodes found and imported" -ForegroundColor Green
+           write-host "Previous nodes found and imported - $nodefile" -ForegroundColor Green
             
            $global:objNodes = @(import-clixml $nodefile)
     
@@ -322,8 +392,9 @@ $count = 0
     $count++} | Format-Table -AutoSize
     $SelectNode = Read-Host -Prompt 'ID to remove'
 
-    $global:objNodes= $global:objNodes | where ({$_.port -ne $global:objNodes[$SelectNode].port -or $_.ip -ne $global:objNodes[$SelectNode].ip})
+    $global:objNodes= @($global:objNodes | where ({$_.port -ne $global:objNodes[$SelectNode].port -or $_.ip -ne $global:objNodes[$SelectNode].ip}))
     save-nodes
+    load-nodes
 }
 function show-nodes{
 ($global:objNodes | format-table online,ip,port,interface,channel,comment,"ap.ttl","sta.ttl"| Format-Table  | Out-String).Trim()
@@ -445,6 +516,9 @@ function Start-Nodes {
                 try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon.channel $($objNode.channel)`"}" -TimeoutSec 5}catch{}
                 }             
                 
+                
+                try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.ap.ttl $($objNode.'ap.ttl')`"}" -TimeoutSec 5}catch{}
+                try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.sta.ttl $($objNode.'sta.ttl')`"}" -TimeoutSec 5}catch{}       
                 try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"set wifi.interface $($objNode.interface)`"}" -TimeoutSec 5}catch{}
                 try {Invoke-RestMethod -uri $uri -Method 'POST' -Headers $headers -Body "{`"cmd`": `"wifi.recon on`"}" -TimeoutSec 5}catch{}
           
@@ -500,6 +574,7 @@ Function GetKeyPress([string]$regexPattern='[ynq]', [string]$message=$null, [int
 }}
 
 
+show-banner
 load-session
 load-nodes
 
@@ -513,12 +588,14 @@ while ($continue) {
     if ($prompt -eq "help") {show-help}
 
     if ($prompt -eq "start") {
+        Write-host "Retrieving data, please wait..."
         $continue2 = $true
         while ($continue2) {
         Get-BettercapAPs
         #Clear-Host
-        Write-HostCenter "######## Last 20 APS ########"
-        ($global:objAPs |Sort-Object -Property last_seen |select -last 20 | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,clients,detectedby,latitude,longitude| Format-Table  | Out-String).Trim()
+        clear
+        write-HostCenter "######## Last 20 APS ########"
+        ($global:objAPs |Sort-Object -Property last_seen |select -last 20 | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,pmkid,clients,detectedby| Format-Table)
         Write-HostCenter "########### Nodes ###########"
         show-nodes
         Write-HostCenter "########### Events ##########"

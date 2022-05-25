@@ -30,8 +30,9 @@ Show configured nodes
 ### nodes add
 Add a node
 ![nodes add](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/nodes_add.png)
-### nodes remove
+### nodes del
 Remove a node
+![nodes del](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/nodes_del.png)
 ### nodes int
 Change node interface
 ![nodes del](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/nodes_int.png)

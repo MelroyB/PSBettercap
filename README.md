@@ -47,3 +47,5 @@ Start retrieving data from nodes
 ### exit
 Saves session, Export CSV, Export KML and exit
 
+## Script flow
+![flow](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/process.png)

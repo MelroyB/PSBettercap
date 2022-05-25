@@ -21,6 +21,8 @@ api.rest on
 ![nodes](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/bettercap_node.png)
 
 ## Commands
+### nodes help
+Display available commands
 ### nodes show
 Show configured nodes
 ![nodes show](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/nodes_show.png)

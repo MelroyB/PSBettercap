@@ -1,3 +1,5 @@
+![nodes](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/start.png)
+
 ## Main Features
 * Control multiple [Bettercap](https://github.com/bettercap/bettercap) nodes through REST API 
 * Runs in Windows and Linux (pwsh)

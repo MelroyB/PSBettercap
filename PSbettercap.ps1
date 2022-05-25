@@ -595,7 +595,7 @@ while ($continue) {
         #Clear-Host
         clear
         write-HostCenter "######## Last 20 APS ########"
-        ($global:objAPs |Sort-Object -Property last_seen |select -last 20 | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,pmkid,clients,detectedby| Format-Table)
+        ($global:objAPs |Sort-Object -Property last_seen |select -last 20 | Format-table -Property last_seen,mac,hostname,channel,encryption,auth,handshake,pmkid,clients,latitude,longitude,detectedby| Format-Table)
         Write-HostCenter "########### Nodes ###########"
         show-nodes
         Write-HostCenter "########### Events ##########"

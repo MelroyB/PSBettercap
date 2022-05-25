@@ -14,9 +14,10 @@
 * Cleanup code
 
 ## Node Configuration
-run bettercap
-set api.rest.address <ip or 0.0.0.0> (bind to all interfaces)
-api.rest on
+For each node
+* run bettercap
+* set api.rest.address <ip or 0.0.0.0> (bind to all interfaces)
+* api.rest on
 
 ![nodes](https://github.com/MelroyB/PSBettercap/raw/main/screenshots/bettercap_node.png)
 

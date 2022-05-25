@@ -8,6 +8,7 @@ $base=$(if ($psISE) {Split-Path -Path $psISE.CurrentFile.FullPath} else {$(if ($
 $Sessionfile = $base + "\session.xml"
 $nodefile = $base + "\nodes.xml"
 $csvfile = $base + "\log-$((get-date).ToString("yyyyMMdd-HHmmss")).csv"
+$kmlfile = $base + "\log-$((get-date).ToString("yyyyMMdd-HHmmss")).kml"
 
 $global:events  =@()
 $global:events += new-object psobject -property @{
@@ -58,7 +59,7 @@ $kml += @"
 
 
 
-$kml | Out-File -Force -Encoding ascii ("c:\temp\log-$((get-date).ToString("yyyyMMdd-HHmmss")).kml")
+$kml | Out-File -Force -Encoding ascii ($kmlfile)
 
 
 }
